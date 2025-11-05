@@ -1,7 +1,8 @@
-import json
-import os
 from torch.utils.data import Dataset
 from PIL import Image
+import os
+import json
+
 
 class DeepfakeDataset(Dataset):
     def __init__(self, real_dir, fake_dir, real_json, fake_json, transform=None):
@@ -17,10 +18,16 @@ class DeepfakeDataset(Dataset):
 
         # Combine image paths and labels
         self.all_data = []
-        for img_name in self.real_labels.keys():
-            self.all_data.append((os.path.join(self.real_dir, img_name), 1))  # real = 1
-        for img_name in self.fake_labels.keys():
-            self.all_data.append((os.path.join(self.fake_dir, img_name), 0))  # fake = 0
+
+        # Real images: prediction = "real" (label 1)
+        for entry in self.real_labels:
+            img_name = f"{entry['index']}.png"
+            self.all_data.append((os.path.join(self.real_dir, img_name), 1))
+
+        # Fake images: prediction = "fake" (label 0)
+        for entry in self.fake_labels:
+            img_name = f"{entry['index']}.png"
+            self.all_data.append((os.path.join(self.fake_dir, img_name), 0))
 
     def __len__(self):
         return len(self.all_data)

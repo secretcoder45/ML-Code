@@ -6,6 +6,8 @@ from torchvision import models, transforms
 from dataset import DeepfakeDataset
 from tqdm import tqdm
 import os
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # Device setup (MPS for Mac or CPU/GPU)
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -36,7 +38,8 @@ train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
 val_loader = DataLoader(val_ds, batch_size=32, shuffle=False)
 
 # Define model
-model = models.resnet18(pretrained=True)
+from torchvision.models import resnet18, ResNet18_Weights
+model = resnet18(weights=ResNet18_Weights.DEFAULT)
 num_features = model.fc.in_features
 model.fc = nn.Linear(num_features, 1)  # Binary classification
 model = model.to(device)
@@ -75,3 +78,8 @@ for epoch in range(epochs):
             total += labels.size(0)
     acc = correct / total * 100
     print(f"Validation Accuracy: {acc:.2f}%")
+
+# Save model
+os.makedirs("output", exist_ok=True)
+torch.save(model.state_dict(), "output/model.pth")
+print("✅ Model saved to output/model.pth")
