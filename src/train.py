@@ -9,12 +9,15 @@ import os
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
-# Device setup (MPS for Mac or CPU/GPU)
+# Device setup (MPS for Mac)
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 # Image transforms
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1),
+    transforms.RandomRotation(degrees=5),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225])
@@ -49,19 +52,20 @@ criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
 # Training loop
-epochs = 5
+best_val_acc = 0.0
+patience = 2
+no_improve_epochs = 0
+epochs = 10
 for epoch in range(epochs):
     model.train()
     running_loss = 0.0
     for imgs, labels in tqdm(train_loader):
         imgs, labels = imgs.to(device), labels.unsqueeze(1).float().to(device)
-
         optimizer.zero_grad()
         outputs = model(imgs)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
-
         running_loss += loss.item()
 
     avg_loss = running_loss / len(train_loader)
@@ -76,8 +80,20 @@ for epoch in range(epochs):
             preds = torch.sigmoid(model(imgs)) > 0.5
             correct += (preds.squeeze().int() == labels).sum().item()
             total += labels.size(0)
-    acc = correct / total * 100
-    print(f"Validation Accuracy: {acc:.2f}%")
+    val_acc = correct / total * 100
+    print(f"Epoch [{epoch+1}/{epochs}] Loss: {avg_loss:.4f}  Val Acc: {val_acc:.2f}%")
+
+    # Early stopping check
+    if val_acc > best_val_acc:
+        best_val_acc = val_acc
+        no_improve_epochs = 0
+        torch.save(model.state_dict(), "output/best_model.pth")
+        print("✅ Saved new best model!")
+    else:
+        no_improve_epochs += 1
+        if no_improve_epochs >= patience:
+            print("🛑 Early stopping triggered!")
+            break
 
 # Save model
 os.makedirs("output", exist_ok=True)
